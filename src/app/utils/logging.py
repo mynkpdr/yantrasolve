@@ -22,7 +22,7 @@ logger.add(
 
 # File output with rotation and retention
 # logger.add(
-#     f"{config.LOGS_DIR}/app_{{time}}.log",
+#     f"{settings.LOGS_DIR}/app_{time()}.log",
 #     rotation="10 MB",
 #     retention="7 days",
 #     level="INFO",

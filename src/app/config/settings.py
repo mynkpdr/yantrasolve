@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
+
 class Config(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key")
     STUDENT_EMAIL: str = os.getenv("STUDENT_EMAIL", "your-email@example.com")
@@ -17,5 +18,6 @@ class Config(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
 
 settings = Config()

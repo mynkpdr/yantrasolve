@@ -4,26 +4,41 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, HttpUrl
+from app.graph.resources import GlobalResources
 from app.utils.helpers import cleanup_temp_files, setup_temp_directory
 from app.utils.logging import logger
 from app.config.settings import settings
 import hmac
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifespan: startup and shutdown tasks"""
+    """Manage global resources for the application lifetime."""
+    logger.info("Application startup: Initializing global resources...")
+
+    global_resources = GlobalResources()
+    await global_resources.initialize()  # Initialize global resources just once
+    app.state.resources = (
+        global_resources  # Global resources access via app.state.resources
+    )
+
     setup_temp_directory()
+
+    #####   Application running   #####
     yield
-    cleanup_temp_files()
+    #####   Application shutdown   #####
+
+    logger.info("Application shutdown: Closing global resources...")
+    await global_resources.close()  # Close global resources
+
+    cleanup_temp_files()  # Clean up temporary files on shutdown
 
 
 # Initialize FastAPI app
 app = FastAPI(
     title="LLM Analysis Quiz Solver",
     description="Intelligent quiz solver using LangGraph and LLMs",
-    version="1.0.0",
+    version="0.1.0",
 )
 
 
@@ -61,18 +76,19 @@ def verify_request(provided_secret: str, provided_email: str) -> bool:
     provided_secret = provided_secret.encode()
     expected_email = settings.STUDENT_EMAIL.encode()
     provided_email = provided_email.encode()
-    
-    return hmac.compare_digest(expected_secret, provided_secret) and hmac.compare_digest(expected_email, provided_email)
+
+    return hmac.compare_digest(
+        expected_secret, provided_secret
+    ) and hmac.compare_digest(expected_email, provided_email)
 
 
-async def solve_quiz_task(
-    email: str, secret: str, url: str
-):
+async def solve_quiz_task(email: str, secret: str, url: str):
     """Background task to solve quiz"""
     # TODO: Implement quiz solving logic here
     logger.info("LOGIC")
     await asyncio.sleep(5)
     logger.info(f"Quiz solved for {email} at {url} with secret {secret}")
+
 
 @app.post("/quiz")
 async def receive_quiz(request: QuizRequest, background_tasks: BackgroundTasks):
@@ -97,7 +113,14 @@ async def receive_quiz(request: QuizRequest, background_tasks: BackgroundTasks):
     logger.info(f"Quiz task started for {request.url}")
     return {"status": "accepted", "message": "Quiz solving started"}
 
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, log_level="debug" if settings.DEBUG else "info", reload=settings.DEBUG)
+    uvicorn.run(
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        log_level="debug" if settings.DEBUG else "info",
+        reload=settings.DEBUG,
+    )

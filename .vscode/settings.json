@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./src" // Add the src directory for better module resolution in vscode
+    ]
+}
