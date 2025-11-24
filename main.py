@@ -1,10 +1,23 @@
 import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, HttpUrl
+from app.utils.helpers import cleanup_temp_files, setup_temp_directory
 from app.utils.logging import logger
 from app.config.settings import settings
 import hmac
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan: startup and shutdown tasks"""
+    setup_temp_directory()
+    yield
+    cleanup_temp_files()
+
 
 # Initialize FastAPI app
 app = FastAPI(
