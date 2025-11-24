@@ -1,13 +1,16 @@
 import asyncio
 from contextlib import asynccontextmanager
+import json
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, HttpUrl
 from app.graph.resources import GlobalResources
+from app.graph.state import QuizState
 from app.utils.helpers import cleanup_temp_files, setup_temp_directory
 from app.utils.logging import logger
 from app.config.settings import settings
+from app.graph.graph import create_quiz_graph
 import hmac
 
 
@@ -82,12 +85,40 @@ def verify_request(provided_secret: str, provided_email: str) -> bool:
     ) and hmac.compare_digest(expected_email, provided_email)
 
 
-async def solve_quiz_task(email: str, secret: str, url: str):
+async def solve_quiz_task(
+    email: str, secret: str, url: str, resources: GlobalResources
+):
     """Background task to solve quiz"""
-    # TODO: Implement quiz solving logic here
-    logger.info("LOGIC")
-    await asyncio.sleep(5)
-    logger.info(f"Quiz solved for {email} at {url} with secret {secret}")
+    try:
+        initial_state: QuizState = {
+            "email": email,
+            "secret": secret,
+            "current_url": url,
+            "resources": resources,
+        }
+
+        # Create and run the quiz-solving graph
+        graph = create_quiz_graph()
+
+        # Execute the graph with timeout
+        try:
+            result = await asyncio.wait_for(
+                graph.ainvoke(initial_state, {"recursion_limit": 500}),
+                timeout=60 * 60,  # 1 hour
+            )
+
+            logger.info(f"Quiz processing completed for {email}")
+            logger.info(f"Completed Urls: {json.dumps(result.get('completed_urls', []), indent=2)}")
+
+        except asyncio.TimeoutError:
+            logger.error(f"Quiz processing timed out for {email}")
+
+    except Exception as e:
+        logger.error(f"Error solving quiz: {e}")
+
+    finally:
+        cleanup_temp_files()
+        logger.info(f"Background task finished for {email}")
 
 
 @app.post("/quiz")
@@ -105,9 +136,11 @@ async def receive_quiz(request: QuizRequest, background_tasks: BackgroundTasks):
         logger.warning(f"Unauthorized access attempt for {request.email}")
         raise HTTPException(status_code=403, detail="Invalid secret or email")
 
+    global_resources = app.state.resources
+
     # Spawn background task
     background_tasks.add_task(
-        solve_quiz_task, request.email, request.secret, request.url
+        solve_quiz_task, request.email, request.secret, request.url, global_resources
     )
 
     logger.info(f"Quiz task started for {request.url}")
