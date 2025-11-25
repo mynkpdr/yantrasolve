@@ -1,3 +1,4 @@
+import time
 from typing import List, Optional, Dict, Any, Union
 
 from app.config.settings import settings
@@ -53,8 +54,13 @@ class LLMClient:
                 # TODO: Implement Anthropic client initialization
                 return None  # Placeholder for Anthropic client initialization
             elif self.provider == "google":
-                # TODO: Implement Google client initialization
-                return None  # Placeholder for Google client initialization
+                from langchain_google_genai import ChatGoogleGenerativeAI
+
+                return ChatGoogleGenerativeAI(
+                    model=self.model,
+                    api_key=self.api_key,
+                    temperature=settings.LLM_TEMPERATURE,
+                )
             else:
                 raise ValueError(f"Unsupported provider: {self.provider}")
         except ImportError as e:
@@ -86,7 +92,8 @@ class LLMClient:
         try:
             if self.provider == "openai":
                 result = await self._openai_chat(messages, tools, temp, max_tokens)
-            # TODO: Add Anthropic and Google chat implementations
+            elif self.provider == "google":
+                result = await self._google_chat(messages, tools, temp, max_tokens)
             else:
                 raise ValueError(f"Unsupported provider: {self.provider}")
 
@@ -95,6 +102,28 @@ class LLMClient:
         except Exception as e:
             logger.error(f"Chat completion failed: {e}")
             raise
+
+    async def _google_chat(
+        self,
+        messages: List[Any],
+        tools: Optional[List[Any]],
+        temperature: float,
+        max_tokens: Optional[int],
+    ) -> AIMessage:
+        """Google-specific chat completion using LangChain."""
+
+        model = self.client
+        if tools:
+            model = model.bind_tools(tools)
+
+        kwargs = {"temperature": temperature}
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+
+        time.sleep(1)  # To avoid rate limits
+        response = await model.ainvoke(messages, **kwargs)
+
+        return response
 
     async def _openai_chat(
         self,
@@ -107,7 +136,7 @@ class LLMClient:
 
         model = self.client
         if tools:
-            model = model.bind_tools(tools, strict=True)
+            model = model.bind_tools(tools)
 
         kwargs = {"temperature": temperature}
         if max_tokens:
