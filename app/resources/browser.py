@@ -1,6 +1,11 @@
+import asyncio
+import hashlib
+import json
 from typing import Optional
-from playwright.async_api import async_playwright, Browser, Playwright
+from playwright.async_api import async_playwright, Browser, Playwright, Page
 
+from app.config.settings import settings
+from app.utils.cache import disk_cache
 from app.utils.helpers import logger
 
 
@@ -37,6 +42,75 @@ class BrowserClient:
         except Exception as e:
             logger.error(f"Failed to initialize browser: {e}")
             raise
+
+    @disk_cache(ttl_seconds=3600)
+    async def fetch_page_content(self, url: str) -> dict:
+        """
+        Fetches the content of a web page, including rendered HTML, visible text,
+
+        Args:
+            url (str): The URL of the page to fetch.
+
+        Returns:
+            dict: A dictionary containing 'html', 'text', 'screenshot_path', and 'console_logs'.
+        """
+        page: Optional[Page] = None
+        try:
+            logger.info(f"Fetching page: {url}")
+
+            # Create new page
+            page = await self.browser.new_page()
+
+            # Intercept console messages
+            console_logs = []
+
+            async def handle_console(msg):
+                for arg in msg.args:
+                    try:
+                        # Convert argument to JSON in the browser
+                        json_value = await arg.json_value()
+                        console_logs.append(
+                            f"[{msg.type}] {json.dumps(json_value, indent=2)}"
+                        )
+                    except Exception:
+                        console_logs.append(f"[{msg.type}] {msg.text}")
+
+            page.on("console", handle_console)
+
+            # Set timeout
+            page.set_default_timeout(settings.BROWSER_PAGE_TIMEOUT)
+
+            # Navigate to URL
+            await page.goto(url, wait_until="networkidle")
+
+            # Wait a bit for JavaScript to execute
+            await asyncio.sleep(1)
+
+            # Get rendered HTML
+            raw_html = await page.content()
+
+            # Get visible text
+            full_text = await page.inner_text("body")
+
+            # Capture screenshot
+            filename = f"{hashlib.sha256(url.encode('utf-8')).hexdigest()}.png"
+            await page.screenshot(full_page=True, path=settings.TEMP_DIR / filename)
+
+            data = {
+                "html": raw_html,
+                "text": full_text,
+                "screenshot_path": str(settings.TEMP_DIR / filename),
+                "console_logs": console_logs,
+            }
+            logger.info(f"Successfully fetched page: {url} (length: {len(raw_html)})")
+            return data
+
+        except Exception as e:
+            logger.error(f"Error fetching page {url}: {e}")
+            raise
+        finally:
+            if page:
+                await page.close()
 
     async def close(self) -> None:
         """Cleanup browser resources."""
