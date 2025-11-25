@@ -19,8 +19,7 @@ class GlobalResources:
         """Initialize all resources concurrently."""
         self.api_client = APIClient()
         self.browser = BrowserClient()
-        self.llm_client = LLMClient()        
-        
+        self.llm_client = LLMClient()
         logger.info("Initializing global resources...")
 
         # Use asyncio.gather for concurrent initialization

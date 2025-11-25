@@ -49,6 +49,7 @@ def disk_cache(ttl_seconds: int = 3600, use_json: bool = True, prefix: str = Non
     Returns:
         Callable: The decorated function with caching.
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
