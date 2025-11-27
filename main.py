@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import json
+import time
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -98,8 +99,19 @@ async def solve_quiz_task(
             "email": email,
             "secret": secret,
             "current_url": url,
-            "tools": [python_tool, javascript_tool, submit_answer_tool],
+            "answer_payload": None,
+            "tools": [python_tool, submit_answer_tool],
+            "attempt_count": 0,
             "resources": resources,
+            "start_time": time.time(),
+            "messages": [],
+            "screenshot_path": "",
+            "html": "",
+            "text": "",
+            "console_logs": [],
+            "completed_quizzes": [],
+            "submission_result": {},
+
         }
 
         # Create and run the quiz-solving graph
@@ -114,7 +126,7 @@ async def solve_quiz_task(
 
             logger.info(f"Quiz processing completed for {email}")
             logger.info(
-                f"Completed Urls: {json.dumps(result.get('completed_urls', []), indent=2)}"
+                f"Completed Quizzes: {json.dumps(result.get('completed_quizzes', []), indent=2)}"
             )
 
         except asyncio.TimeoutError:

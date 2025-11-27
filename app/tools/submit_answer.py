@@ -1,4 +1,3 @@
-import json
 from typing import Dict, Any, Optional
 from langchain_core.tools import tool
 from app.utils.logging import logger
@@ -10,7 +9,7 @@ async def submit_answer_tool(
     post_endpoint_url: str,
     payload: Dict[str, Any],
     headers: Optional[Dict[str, str]] = {},
-) -> str:
+) -> dict:
     """
     Submits the quiz answer payload to the specified URL via HTTP POST.
 
@@ -20,7 +19,7 @@ async def submit_answer_tool(
         headers (Dict[str, str]): Headers to include in the request
 
     Returns:
-        str: Server response as JSON string or error message
+        dict: Server response as JSON dictionary or error message
     """
     try:
         logger.info(
@@ -32,17 +31,12 @@ async def submit_answer_tool(
                 post_endpoint_url, json=payload, headers=headers
             )
             response.raise_for_status()
-
-            # Try to parse as JSON, fallback to text
-            try:
-                result = response.json()
-                return json.dumps(result)
-            except json.JSONDecodeError:
-                return response.text
+            result = response.json()
+            return result
 
     except httpx.HTTPError as e:
         logger.error(f"Submission failed: {e}")
-        return json.dumps({"error": f"Submission failed: {str(e)}"})
+        return {"error": f"Submission failed: {str(e)}"}
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return json.dumps({"error": f"Unexpected error: {str(e)}"})
+        return {"error": f"Unexpected error: {str(e)}"}

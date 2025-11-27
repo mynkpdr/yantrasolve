@@ -22,6 +22,8 @@ class Config(BaseSettings):
     LLM_PROVIDER: str = "openai"  # or anthropic or google
     LLM_TEMPERATURE: float = 0.1
 
+    BROWSER_PAGE_TIMEOUT: int = 10000  # in milliseconds
+
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

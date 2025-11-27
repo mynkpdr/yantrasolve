@@ -8,15 +8,34 @@ from app.nodes.tools import tool_execution_node
 from app.nodes.submit import submit_node
 
 
-def route_agent_decision(state):
+def route_agent_decision(state: QuizState) -> str:
     """
     Determines the next node based on the Agent's last message.
-    Routes:
-        - execute_tools: if LLM emitted tool calls (not submit_answer)
-        - submit_answer: if the message contains tool call for submit_answer
+
+    Logic:
+    1. If there are any tool calls:
+        a. If any tool call is `submit_answer`, route to `submit_answer`
+        b. Otherwise, route to `execute_tools`
+    2. If there are no tool calls, stay in agent reasoning (optional) or END
     """
-    # TODO: Implement actual routing logic based on state analysis
-    return "submit_answer"
+    last_message = state["messages"][-1]
+
+    tool_calls = getattr(last_message, "tool_calls", [])
+
+    if not tool_calls:
+        # No tools called
+        print(" No tool calls made by agent.")
+        # TODO: Implement this later: for now, we route to execute_tools to avoid stalling
+        return "execute_tools"
+
+    # Check if any tool call is submit_answer
+    for tc in tool_calls:
+        name = tc["name"]
+        if name == "submit_answer_tool":
+            return "submit_answer"
+
+    # Otherwise, execute all other tools
+    return "execute_tools"
 
 
 def route_feedback(state):
@@ -27,6 +46,23 @@ def route_feedback(state):
         - END: if quiz is complete or no next URL
     """
     # TODO: Implement actual routing logic based on state analysis
+    result = state["submission_result"]
+
+    if state.get("is_complete"):
+        return END
+
+    if result.get("correct"):
+        # If correct and new URL exists -> Loop back to start
+        return "fetch_context"
+
+    # If incorrect, checking if we have time/attempts left
+    if state["attempt_count"] < 5:  # Limit retries
+        return "fetch_context"
+
+    # If simply moving to next quiz (skip) or giving up
+    if result.get("url"):
+        return "fetch_context"
+
     return END
 
 
