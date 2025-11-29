@@ -1,3 +1,14 @@
+---
+title: Yantrasolve
+emoji: 🏢
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+license: mit
+short_description: An automated system that to solve data-driven quizzes.
+---
+
 # 🧩 YantraSolve – Automated Quiz Solver
 
 [![Hugging Face Space](https://img.shields.io/badge/🤗-Space-ff5c5c?logo=huggingface)](https://huggingface.co/spaces/mynkpdriitm/yantrasolve)
