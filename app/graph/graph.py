@@ -14,19 +14,18 @@ def route_agent_decision(state: QuizState) -> str:
 
     Logic:
     1. If there are any tool calls:
-        a. If any tool call is `submit_answer`, route to `submit_answer`
+        a. If any tool call is `submit_answer_tool`, route to `submit_answer`
         b. Otherwise, route to `execute_tools`
-    2. If there are no tool calls, stay in agent reasoning (optional) or END
+    2. If there are no tool calls, loop back to agent (force tool usage)
     """
     last_message = state["messages"][-1]
 
     tool_calls = getattr(last_message, "tool_calls", [])
 
     if not tool_calls:
-        # No tools called
-        print(" No tool calls made by agent.")
-        # TODO: Implement this later: for now, we route to execute_tools to avoid stalling
-        return "execute_tools"
+        # No tools called - loop back to agent to force tool usage
+        # The agent prompt explicitly requires tool calls
+        return "agent_reasoning"
 
     # Check if any tool call is submit_answer
     for tc in tool_calls:
@@ -45,7 +44,6 @@ def route_feedback(state):
         - fetch_context: if there's a next URL to fetch
         - END: if quiz is complete or no next URL
     """
-    # TODO: Implement actual routing logic based on state analysis
     result = state["submission_result"]
 
     if state.get("is_complete"):
@@ -94,7 +92,11 @@ def create_quiz_graph() -> StateGraph:
     workflow.add_conditional_edges(
         "agent_reasoning",
         route_agent_decision,
-        {"execute_tools": "execute_tools", "submit_answer": "submit_answer"},
+        {
+            "execute_tools": "execute_tools",
+            "submit_answer": "submit_answer",
+            "agent_reasoning": "agent_reasoning",  # Loop back if no tool calls
+        },
     )
 
     # After tools, always go back to agent to analyze tool output

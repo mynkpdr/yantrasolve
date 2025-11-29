@@ -1,8 +1,8 @@
-import time
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Any, Union, Dict
 
 from app.config.settings import settings
 from app.utils.logging import logger
+from app.utils.gemini import gemini_key_manager
 from langchain_core.messages import AIMessage
 
 
@@ -51,8 +51,9 @@ class LLMClient:
                     temperature=settings.LLM_TEMPERATURE,
                 )
             elif self.provider == "anthropic":
-                # TODO: Implement Anthropic client initialization
-                return None  # Placeholder for Anthropic client initialization
+                return (
+                    None  # Placeholder for Anthropic client initialization as for now
+                )
             elif self.provider == "google":
                 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -101,7 +102,7 @@ class LLMClient:
 
         except Exception as e:
             logger.error(f"Chat completion failed: {e}")
-            raise
+            return AIMessage(content=f"Error: {str(e)}", role="error")
 
     async def _google_chat(
         self,
@@ -110,18 +111,30 @@ class LLMClient:
         temperature: float,
         max_tokens: Optional[int],
     ) -> AIMessage:
-        """Google-specific chat completion using LangChain."""
+        """Google-specific chat completion using LangChain with round-robin key rotation."""
+        from langchain_google_genai import ChatGoogleGenerativeAI
 
-        model = self.client
+        # Get next API key from round-robin manager
+        api_key = gemini_key_manager.get_next_key()
+        # Create a fresh client with the rotated key
+        model = ChatGoogleGenerativeAI(
+            model=self.model,
+            api_key=api_key,
+            temperature=temperature,
+            max_retries=0,
+            timeout=30,
+        )
+
         if tools:
             model = model.bind_tools(tools)
 
-        kwargs = {"temperature": temperature}
+        kwargs = {}
         if max_tokens:
             kwargs["max_tokens"] = max_tokens
 
-        time.sleep(1)  # To avoid rate limits
         response = await model.ainvoke(messages, **kwargs)
+
+        logger.debug(response)
 
         return response
 

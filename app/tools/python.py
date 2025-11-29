@@ -7,25 +7,23 @@ import pandas as pd  # Pre-import common libs
 import numpy as np
 
 # A global dictionary to hold session variables.
-# Key = email (or unique session ID), Value = globals dictionary
-SESSION_GLOBALS = {}
+# We use a single global scope since the app handles one quiz at a time per session
+GLOBAL_SCOPE = {"pd": pd, "np": np, "__builtins__": __builtins__}
+
+
+def reset_python_session():
+    """Reset the Python session globals for a new quiz."""
+    global GLOBAL_SCOPE
+    GLOBAL_SCOPE = {"pd": pd, "np": np, "__builtins__": __builtins__}
 
 
 @tool
-def python_tool(code: str, session_id: str) -> str:
+def python_tool(code: str):
     """
-    Executes Python code in a stateful environment (variables persist).
-    ALWAYS print() the result you want to see.
-
     Args:
-        code: Valid python code.
-        session_id: The user's email or session identifier.
+        code: Valid Python code to execute. Must use print() to output results.
     """
-    # Initialize session if not exists
-    if session_id not in SESSION_GLOBALS:
-        SESSION_GLOBALS[session_id] = {"pd": pd, "np": np, "__builtins__": __builtins__}
-
-    local_scope = SESSION_GLOBALS[session_id]
+    global GLOBAL_SCOPE
 
     # Capture stdout
     old_stdout = sys.stdout
@@ -34,7 +32,7 @@ def python_tool(code: str, session_id: str) -> str:
 
     try:
         # execute code using the persistent scope
-        exec(code, local_scope)
+        exec(code, GLOBAL_SCOPE)
 
         output = redirected_output.getvalue()
         return (
@@ -44,6 +42,39 @@ def python_tool(code: str, session_id: str) -> str:
         )
 
     except Exception:
-        return f"Runtime Error:\n{traceback.format_exc()}"
+        error_msg = traceback.format_exc()
+        # Try to give a hint if it's a common error
+        if "NameError" in error_msg:
+            error_msg += "\nHint: Did you define the variable in a previous step? Remember session is stateful."
+        if "ModuleNotFoundError" in error_msg:
+            error_msg += "\nHint: The module may not be installed. Try using an alternative or install it via pip."
+        return f"Runtime Error:\n{error_msg}. Please fix the code and try again."
     finally:
         sys.stdout = old_stdout
+
+
+@tool
+def read_qr_code_tool(image_path: str) -> str:
+    """
+    Reads a QR code from the given image file and returns the decoded text.
+
+    Args:
+        image_path: Path to the image file containing the QR code.
+    """
+    try:
+        from PIL import Image
+        from pyzbar.pyzbar import decode
+
+        img = Image.open(image_path)
+        decoded_objects = decode(img)
+
+        if not decoded_objects:
+            return "No QR code found in the image."
+
+        qr_data = decoded_objects[0].data.decode("utf-8")
+        return f"Decoded QR Code Data: {qr_data}"
+
+    except ImportError:
+        return "Required libraries for QR code reading are not installed."
+    except Exception as e:
+        return f"Error reading QR code: {str(e)}"

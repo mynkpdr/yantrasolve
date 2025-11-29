@@ -5,8 +5,8 @@ from typing import Optional
 from playwright.async_api import async_playwright, Browser, Playwright, Page
 
 from app.config.settings import settings
-from app.utils.cache import disk_cache
-from app.utils.helpers import logger
+from app.utils.cache import get_cache_key, cache_get, cache_set
+from app.utils.logging import logger
 
 
 class BrowserClient:
@@ -43,7 +43,6 @@ class BrowserClient:
             logger.error(f"Failed to initialize browser: {e}")
             raise
 
-    @disk_cache(ttl_seconds=3600)
     async def fetch_page_content(self, url: str) -> dict:
         """
         Fetches the content of a web page, including rendered HTML, visible text,
@@ -54,6 +53,13 @@ class BrowserClient:
         Returns:
             dict: A dictionary containing 'html', 'text', 'screenshot_path', and 'console_logs'.
         """
+        # Check cache first
+        cache_key = get_cache_key("fetch_page_content", url)
+        hit, cached_data = cache_get(cache_key, ttl_seconds=3600)
+        if hit:
+            logger.info(f"Cache hit for page: {url}")
+            return cached_data
+
         page: Optional[Page] = None
         try:
             logger.info(f"Fetching page: {url}")
@@ -103,6 +109,10 @@ class BrowserClient:
                 "console_logs": console_logs,
             }
             logger.info(f"Successfully fetched page: {url} (length: {len(raw_html)})")
+
+            # Cache the result
+            cache_set(cache_key, data)
+
             return data
 
         except Exception as e:

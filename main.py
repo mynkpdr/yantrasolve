@@ -3,14 +3,18 @@ from contextlib import asynccontextmanager
 import json
 import time
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, HttpUrl
 from app.graph.resources import GlobalResources
 from app.graph.state import QuizState
 from app.tools.submit_answer import submit_answer_tool
 from app.tools.python import python_tool
-from app.tools.javascript import javascript_tool
+from app.tools.javascript import create_javascript_tool
+from app.tools.download import download_file_tool
+from app.tools.call_llm import call_llm_tool, call_llm_with_multiple_files_tool
 
 from app.utils.helpers import cleanup_temp_files, setup_temp_directory
 from app.utils.logging import logger
@@ -60,6 +64,16 @@ app.add_middleware(
 )
 
 
+# Exception handler for invalid JSON (HTTP 400)
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return 400 for invalid JSON or validation errors"""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Invalid JSON payload", "errors": exc.errors()},
+    )
+
+
 class QuizRequest(BaseModel):
     email: EmailStr
     secret: str
@@ -95,15 +109,17 @@ async def solve_quiz_task(
 ):
     """Background task to solve quiz"""
     try:
+        javascript_tool = create_javascript_tool(resources.browser)
         initial_state: QuizState = {
             "email": email,
             "secret": secret,
             "current_url": url,
             "answer_payload": None,
-            "tools": [python_tool, submit_answer_tool],
+            "tools": [python_tool, submit_answer_tool, javascript_tool, download_file_tool, call_llm_tool, call_llm_with_multiple_files_tool],
             "attempt_count": 0,
             "resources": resources,
             "start_time": time.time(),
+            "is_complete": False,
             "messages": [],
             "screenshot_path": "",
             "html": "",

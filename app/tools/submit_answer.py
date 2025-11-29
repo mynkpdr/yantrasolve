@@ -1,38 +1,43 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from langchain_core.tools import tool
 from app.utils.logging import logger
 import httpx
 
 
 @tool
-async def submit_answer_tool(
+def submit_answer_tool(
     post_endpoint_url: str,
     payload: Dict[str, Any],
-    headers: Optional[Dict[str, str]] = {},
 ) -> dict:
     """
     Submits the quiz answer payload to the specified URL via HTTP POST.
 
     Args:
-        post_endpoint_url (str): The submission URL
-        payload (Dict[str, Any]): The JSON payload containing the answer
-        headers (Dict[str, str]): Headers to include in the request
+        post_endpoint_url: The submission URL (must start with http:// or https://)
+        payload: The JSON payload containing email, secret, url, and answer
 
     Returns:
-        dict: Server response as JSON dictionary or error message
+        Server response as JSON string or error message
     """
     try:
+        headers = {"Content-Type": "application/json"}
+
+        if not post_endpoint_url.startswith("http"):
+            return {"error": "The submission URL must start with http:// or https://"}
+
+        if payload.get("url") and not payload["url"].startswith("http"):
+            return {
+                "error": "The 'url' field in payload must be an absolute URL starting with http:// or https://"
+            }
+
         logger.info(
-            f"Submitting answer to: {post_endpoint_url} with payload: {payload} and headers: {headers}"
+            f"Submitting answer to: {post_endpoint_url} with payload: {payload}"
         )
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                post_endpoint_url, json=payload, headers=headers
-            )
+        with httpx.Client(timeout=15.0) as client:
+            response = client.post(post_endpoint_url, json=payload, headers=headers)
             response.raise_for_status()
-            result = response.json()
-            return result
+            return response.json()
 
     except httpx.HTTPError as e:
         logger.error(f"Submission failed: {e}")

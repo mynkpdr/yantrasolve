@@ -5,7 +5,6 @@ from langchain_core.messages import ToolMessage
 
 async def tool_execution_node(state: QuizState) -> dict:
     # Implementation of tool execution logic
-    # TODO: Add proper tool execution logic here
     logger.info(f"\n{'#' * 30}\n3. Executing tools...\n{'#' * 30}")
     messages = state["messages"]
     last_message = messages[-1]

@@ -18,6 +18,7 @@ class QuizState(TypedDict):
     current_url: str
     answer_payload: Any
     start_time: float
+    is_complete: bool
 
     html: str
     text: str

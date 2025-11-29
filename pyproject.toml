@@ -9,21 +9,39 @@ authors = [
   { name = "Mayank Kumar Poddar", email = "23f3004197@ds.study.iitm.ac.in" },
 ]
 dependencies = [
+    "bs4>=0.0.2",
+    "duckdb>=1.4.2",
     "fastapi[standard]>=0.121.3",
+    "geopy>=2.4.1",
+    "httpx>=0.28.1",
     "langchain>=1.0.8",
     "langchain-google-genai>=3.2.0",
     "langchain-openai>=1.0.3",
+    "langgraph>=1.0.4",
     "loguru>=0.7.3",
+    "matplotlib>=3.10.7",
+    "networkx>=3.6",
     "numpy>=2.3.5",
+    "openai>=2.8.1",
+    "openpyxl>=3.1.5",
     "pandas>=2.3.3",
+    "pillow>=12.0.0",
     "playwright>=1.56.0",
     "pydantic-settings>=2.12.0",
+    "pypdf>=6.4.0",
+    "pypdf2>=3.0.1",
+    "pyzbar>=0.1.9",
+    "qrcode>=8.2",
+    "qrtools>=0.0.2",
+    "requests>=2.32.5",
+    "scikit-learn>=1.7.2",
+    "scipy>=1.16.3",
     "uvicorn>=0.38.0",
 ]
 
 [project.urls]
-homepage = "https://github.com/mynkpdr/yantrasolve#readme"
-repository = "https://github.com/mynkpdr/yantrasolve"
+homepage = "https://github.com/mayanklearns/yantrasolve#readme"
+repository = "https://github.com/mayanklearns/yantrasolve"
 
 [dependency-groups]
 dev = [

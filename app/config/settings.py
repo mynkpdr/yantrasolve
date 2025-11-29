@@ -22,6 +22,10 @@ class Config(BaseSettings):
     LLM_PROVIDER: str = "openai"  # or anthropic or google
     LLM_TEMPERATURE: float = 0.1
 
+    GEMINI_API_KEY_1: str = os.getenv("GEMINI_API_KEY_1", "your-gemini-api-key")
+    GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "your-gemini-api-key")
+    GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "your-gemini-api-key")
+
     BROWSER_PAGE_TIMEOUT: int = 10000  # in milliseconds
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
