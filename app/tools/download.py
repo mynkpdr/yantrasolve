@@ -11,7 +11,7 @@ from app.utils.cache import get_cache_key, cache_get, cache_set
 
 
 @tool
-async def download_file_tool(url: str) -> str:
+def download_file_tool(url: str) -> str:
     """
     Downloads a file from a URL and saves it locally in the configured temp directory.
 
@@ -32,8 +32,8 @@ async def download_file_tool(url: str) -> str:
     try:
         logger.info(f"Downloading: {url}")
 
-        async with httpx.AsyncClient() as client:
-            async with client.stream("GET", url, follow_redirects=True) as response:
+        with httpx.Client(timeout=60.0) as client:
+            with client.stream("GET", url, follow_redirects=True) as response:
                 response.raise_for_status()
 
                 # ----- SIZE CHECK -----
@@ -82,7 +82,7 @@ async def download_file_tool(url: str) -> str:
                 chunk_size = 1024 * 1024
 
                 with open(local_path, "wb") as file:
-                    async for chunk in response.aiter_bytes(chunk_size):
+                    for chunk in response.iter_bytes(chunk_size):
                         downloaded_size += len(chunk)
                         if downloaded_size > max_size_mb * 1024 * 1024:
                             return f"Download aborted: Exceeded {max_size_mb}MB limit."

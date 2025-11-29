@@ -53,28 +53,3 @@ def python_tool(code: str):
         sys.stdout = old_stdout
 
 
-@tool
-def read_qr_code_tool(image_path: str) -> str:
-    """
-    Reads a QR code from the given image file and returns the decoded text.
-
-    Args:
-        image_path: Path to the image file containing the QR code.
-    """
-    try:
-        from PIL import Image
-        from pyzbar.pyzbar import decode
-
-        img = Image.open(image_path)
-        decoded_objects = decode(img)
-
-        if not decoded_objects:
-            return "No QR code found in the image."
-
-        qr_data = decoded_objects[0].data.decode("utf-8")
-        return f"Decoded QR Code Data: {qr_data}"
-
-    except ImportError:
-        return "Required libraries for QR code reading are not installed."
-    except Exception as e:
-        return f"Error reading QR code: {str(e)}"

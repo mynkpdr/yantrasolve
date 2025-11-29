@@ -6,14 +6,16 @@ colorTo: green
 sdk: docker
 pinned: false
 license: mit
-short_description: An automated system that to solve data-driven quizzes.
+short_description: An automated system to solve data-driven tasks using AI.
 ---
 
-# 🧩 YantraSolve – Automated Quiz Solver
+# 🧩 YantraSolve – Autonomous AI Quiz Solver
 
 [![Hugging Face Space](https://img.shields.io/badge/🤗-Space-ff5c5c?logo=huggingface)](https://huggingface.co/spaces/mynkpdriitm/yantrasolve)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Workflow-orange)](https://langchain-ai.github.io/langgraph/)
 
 **Author:** Mayank Kumar Poddar (<23f3004197@ds.study.iitm.ac.in>)  
 **GitHub:** [mayanklearns/yantrasolve](https://github.com/mayanklearns/yantrasolve)
@@ -22,204 +24,340 @@ short_description: An automated system that to solve data-driven quizzes.
 
 ## 📖 Overview
 
-`YantraSolve` is a **FastAPI‑based micro‑service** that automatically solves the *LLM Analysis Quiz* used in the **Tools in Data Science – Project 2** of the **IITM BS Degree Programme**.  
-The system leverages **LangGraph**, **large language models**, and a **headless Chromium browser** to:
+`YantraSolve` is an **AI-powered autonomous quiz-solving agent** built for the **Tools in Data Science – Project 2** of the **IITM BS Degree Programme**.
 
-1. **Fetch** each quiz page (HTML, screenshots, console logs).  
-2. **Reason** about the next action using an LLM‑driven agent.  
-3. **Execute** Python or JavaScript snippets, download auxiliary files, and finally **submit** the answer payload.
-4. **Iterate** until the whole quiz chain is completed.
+The system uses a **LangGraph state machine**, **LLMs (GPT/Gemini)**, and **Playwright headless browser** to:
 
-All heavy lifting happens in a **background task**, allowing the API to respond instantly while the solver works asynchronously.
+1. **Fetch** quiz pages (HTML, screenshots, console logs from JS-rendered content)
+2. **Reason** using an AI agent that decides which tools to use
+3. **Execute** Python code, JavaScript on pages, download files, analyze with vision/audio LLMs
+4. **Submit** answers and handle feedback (retry on wrong, proceed on correct)
+5. **Iterate** through the entire quiz chain until completion
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌───────────────┐
+│ fetch_context│────▶│ agent_reasoning │◀───▶│ execute_tools │
+└─────────────┘     └────────┬────────┘     └───────────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  submit_answer  │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐     ┌──────────────┐
+                    │process_feedback │────▶│ next quiz/END│
+                    └─────────────────┘     └──────────────┘
+```
 
 ---
 
-## 🚀 Quick Start (Local Development)
+## ✨ Features & Capabilities
+
+### 🤖 AI Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `python_tool` | Execute Python code with persistent session (pre-imported: pandas, numpy) |
+| `javascript_tool` | Run JavaScript on browser pages via Playwright |
+| `download_file_tool` | Download files (up to 50MB) with caching |
+| `call_llm_tool` | Analyze files with Gemini 2.5 Flash (images, PDFs, audio, video) |
+| `call_llm_with_multiple_files_tool` | Analyze multiple files together |
+| `submit_answer_tool` | Submit answers to quiz endpoints |
+
+### 📊 Supported Task Types
+
+Based on `project.md` requirements, the system handles:
+
+| Category | Capabilities |
+|----------|--------------|
+| **Web Scraping** | JS-rendered pages, dynamic content, console logs, iframes |
+| **File Processing** | PDF extraction, Excel/CSV parsing, ZIP/Gzip decoding |
+| **Vision/OCR** | Image text extraction, QR codes (via cv2), chart reading, screenshots |
+| **Audio** | Transcription via Gemini, waveform analysis |
+| **Data Analysis** | Pandas operations, filtering, aggregation, statistics |
+| **Machine Learning** | Regression, clustering, classification (via Python) |
+| **Visualization** | Generate charts as base64 images |
+| **Geospatial** | GeoJSON/KML analysis with networkx |
+| **Encoding** | Base64, Gzip, AES decryption, hashing (MD5/SHA1) |
+
+### 🛡️ Robustness Features
+
+- **3-minute timeout** per quiz with automatic skip to next
+- **Unlimited retries** within timeout window
+- **10 max attempts** before moving on
+- **Exponential backoff** on LLM errors (up to 10 retries)
+- **Round-robin API key rotation** for Gemini (up to 3 keys)
+- **File-based caching** with TTL for pages and downloads
+- **Graceful error handling** - agent never crashes
+- **Token limit protection** - skips quiz if messages exceed 25000 tokens
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- **Python 3.11+** (recommended via `uv` – a fast, modern Python package manager).
-- **Docker** (optional, for containerised deployment).
-- **Playwright** browsers – they are installed automatically when you run the app for the first time.
+- **Python 3.11+** (recommended via [uv](https://github.com/astral-sh/uv))
+- **Docker** (optional, for deployment)
+- **Playwright browsers** (auto-installed on first run)
 
-### 1️⃣ Clone the repository
+### 1️⃣ Clone & Install
 ```bash
 git clone https://github.com/mayanklearns/yantrasolve.git
 cd yantrasolve
+uv sync  # or: pip install -e .
+playwright install chromium
 ```
 
-### 2️⃣ Install dependencies with **uv**
-```bash
-uv sync   # reads pyproject.toml and installs exact versions
-```
-> `uv sync` creates a virtual environment in `.venv` (by default) and locks the dependency graph, guaranteeing reproducible builds.
-
-### 3️⃣ Configure environment variables
-Create a `.env` file in the project root (or export variables in your shell). Example:
+### 2️⃣ Configure Environment
+Create `.env` file:
 ```dotenv
+# Required
 SECRET_KEY=your-secret-key
-STUDENT_EMAIL=23f3004197@ds.study.iitm.ac.in
-LLM_API_KEY=your-openai-or-google-api-key
-LLM_PROVIDER=google   # or anthropic, openai, etc.
+STUDENT_EMAIL=your-email@ds.study.iitm.ac.in
+
+# LLM Configuration (Primary reasoning model)
+LLM_API_KEY=your-openai-api-key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_PROVIDER=openai  # or google
+
+# Gemini Keys (for file analysis - round-robin rotation)
+GEMINI_API_KEY_1=your-gemini-key-1
+GEMINI_API_KEY_2=your-gemini-key-2
+GEMINI_API_KEY_3=your-gemini-key-3
+
+# Server
 HOST=0.0.0.0
 PORT=8000
-DEBUG=true
+DEBUG=false
 ```
-> The `settings` module (`app/config/settings.py`) reads these variables via **pydantic‑settings**.
 
-### 4️⃣ Run the server
+### 3️⃣ Run
 ```bash
-uv run python -m uvicorn main:app --reload
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+# or
+python main.py
 ```
-The API will be available at `http://127.0.0.1:8000`.
 
-### 5️⃣ Health check
+### 4️⃣ Test
 ```bash
-curl http://127.0.0.1:8000/health
+# Health check
+curl http://localhost:8000/health
+
+# Submit a quiz (runs in background)
+curl -X POST http://localhost:8000/quiz \
+  -H "Content-Type: application/json" \
+  -d '{"email":"your-email","secret":"your-secret","url":"https://quiz-url"}'
 ```
-You should receive a JSON response confirming the service is up.
 
 ---
 
-## 📦 Docker & HuggingFace Space Deployment
+## 🐳 Docker Deployment
 
-### Dockerfile (already in the repo)
-The repository ships a production‑ready `Dockerfile`. Build and run it locally:
 ```bash
+# Build
 docker build -t yantrasolve .
 
+# Run
 docker run -p 8000:8000 \
-  -e SECRET_KEY=your-secret-key \
-  -e STUDENT_EMAIL=23f3004197@ds.study.iitm.ac.in \
-  -e LLM_API_KEY=your-llm-key \
-  -e LLM_PROVIDER=google \
+  -e SECRET_KEY=xxx \
+  -e STUDENT_EMAIL=xxx \
+  -e LLM_API_KEY=xxx \
+  -e GEMINI_API_KEY_1=xxx \
   yantrasolve
 ```
-The container starts the FastAPI app automatically.
 
-### Deploy as a HuggingFace Space (FastAPI template)
-1. **Create a new Space** on HuggingFace and select the *FastAPI* template.
-2. **Push the repository** to the Space (or use the UI to upload files). The existing `Dockerfile` will be used by HuggingFace to build the container.
-3. **Add the required secrets** in the Space settings under *Variables* (`SECRET_KEY`, `STUDENT_EMAIL`, `LLM_API_KEY`, `LLM_PROVIDER`).
-4. The Space will automatically start the server on the port defined by the `PORT` env variable (default `8000`).
-5. Once the build finishes, you can interact with the API via the Space URL, e.g., `https://mynkpdriitm-yantrasolve.hf.space/quiz`.
-
-> **Note:** HuggingFace Spaces enforce a 12‑hour timeout for background tasks. The solver is designed to finish well within this limit (default 1‑hour timeout per quiz chain).
+### HuggingFace Spaces
+1. Create new Space with Docker SDK
+2. Push this repository
+3. Add secrets in Space settings
+4. Access via `https://your-space.hf.space/quiz`
 
 ---
 
 ## 🌲 Project Structure
+
 ```
-.
-├── app/                     # Core application package
-│   ├── config/              # Settings (pydantic)
-│   ├── graph/               # LangGraph construction
-│   ├── nodes/               # Graph nodes (fetch, agent, submit, …)
-│   ├── resources/           # Browser, LLM, API helpers
-│   ├── tools/               # Sandbox tools (python, js, download, submit)
-│   └── utils/               # Helpers & logging
-├── tests/                   # pytest suite
-├── Dockerfile               # Multi‑stage build for production
-├── pyproject.toml           # Build system, dependencies, uv scripts
-├── README.md                # You are reading it!
-└── main.py                  # FastAPI entry point
+yantrasolve/
+├── main.py                    # FastAPI entry point
+├── app/
+│   ├── config/
+│   │   └── settings.py        # Pydantic settings from env
+│   ├── graph/
+│   │   ├── graph.py           # LangGraph workflow definition
+│   │   ├── state.py           # QuizState TypedDict
+│   │   └── resources.py       # GlobalResources (browser, llm)
+│   ├── nodes/
+│   │   ├── fetch.py           # Fetch page content node
+│   │   ├── agent.py           # AI reasoning node
+│   │   ├── tools.py           # Tool execution node
+│   │   ├── submit.py          # Answer submission node
+│   │   └── feedback.py        # Process server response node
+│   ├── tools/
+│   │   ├── python.py          # Python execution sandbox
+│   │   ├── javascript.py      # Browser JS execution
+│   │   ├── download.py        # File downloader with cache
+│   │   ├── call_llm.py        # Gemini multimodal analysis
+│   │   └── submit_answer.py   # HTTP POST submission
+│   ├── resources/
+│   │   ├── llm.py             # Multi-provider LLM client
+│   │   ├── browser.py         # Playwright browser wrapper
+│   │   └── api.py             # HTTP client utilities
+│   └── utils/
+│       ├── logging.py         # Structured logger
+│       ├── cache.py           # File-based caching
+│       ├── helpers.py         # Temp file management
+│       └── gemini.py          # Gemini API utilities
+├── tests/                     # Pytest test suite
+├── Dockerfile                 # Production container
+└── pyproject.toml             # Dependencies & scripts
 ```
-
-### `pyproject.toml`
-The **pyproject.toml** defines the build backend, dependencies, and a convenient `uv run` script:
-```toml
-[project]
-name = "yantrasolve"
-version = "0.1.0"
-description = "Automated quiz solver for IITM Data Science project"
-requires-python = ">=3.11"
-license = {text = "MIT"}
-authors = [{name = "Mayank Kumar Poddar", email = "23f3004197@ds.study.iitm.ac.in"}]
-
-[project.dependencies]
-fastapi = "^0.115"
-uvicorn = "^0.30"
-langgraph = "^0.0.30"
-playwright = "^1.45"
-pydantic-settings = "^2.5"
-# … other runtime deps …
-
-[tool.uv]
-# uv specific configuration (optional)
-
-[tool.uv.scripts]
-start = "python -m uvicorn main:app --host $HOST --port $PORT"
-```
-Running `uv sync` reads this file, creates a lockfile (`uv.lock`) and installs the exact versions, guaranteeing reproducibility across environments.
 
 ---
 
-## 📚 API Specification
+## 📚 API Reference
 
-| Method | Path | Description | Request Body | Response |
-|--------|------|-------------|--------------|----------|
-| `GET` | `/` or `/health` | Health check | – | `{ "status": "ok", "message": "Quiz Solver is running" }` |
-| `POST` | `/quiz` | Submit a quiz‑solving job (runs in background) | `QuizRequest` (see below) | `{ "status": "accepted", "message": "Quiz solving started" }` |
+### `GET /` or `GET /health`
+Health check endpoint.
+```json
+{"status": "ok", "message": "Quiz Solver is running"}
+```
 
-### `QuizRequest` model
+### `POST /quiz`
+Start quiz solving (runs in background).
+
+**Request:**
 ```json
 {
   "email": "student@example.com",
   "secret": "your-secret-key",
-  "url": "https://tdsbasictest.vercel.app/quiz/1"
+  "url": "https://example.com/quiz/1"
 }
 ```
-The request is validated against the **Pydantic** model defined in `main.py`.
+
+**Response:**
+- `200` - Quiz solving started
+- `400` - Invalid JSON payload
+- `403` - Invalid secret or email
 
 ---
 
-## 🛠️ Core Components (high‑level)
-- **`app.graph.graph`** – builds the LangGraph workflow (`create_quiz_graph`).
-- **`app.nodes.*`** – individual graph nodes (`fetch`, `agent`, `submit`, `feedback`).
-- **`app.tools.*`** – sandboxed tools (`python_tool`, `javascript_tool`, `download_file_tool`, `submit_answer_tool`).
-- **`app.resources.browser`** – Playwright wrapper for headless Chromium interactions.
-- **`app.resources.llm`** – provider‑agnostic LLM client (Google, Anthropic, OpenAI, …).
-- **`app.utils.helpers`** – temporary‑directory management and cleanup utilities.
-- **`app.utils.logging`** – structured logging with timestamps.
+## ⚙️ Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECRET_KEY` | required | Authentication secret |
+| `STUDENT_EMAIL` | required | Student email ID |
+| `LLM_API_KEY` | required | Primary LLM API key |
+| `LLM_PROVIDER` | `openai` | `openai` or `google` |
+| `LLM_MODEL` | `gpt-5-mini` | Model for reasoning |
+| `LLM_TEMPERATURE` | `0.1` | Sampling temperature |
+| `GEMINI_API_KEY_1/2/3` | optional | Round-robin Gemini keys |
+| `TEMP_DIR` | `/tmp/quiz_files` | Temporary file storage |
+| `CACHE_DIR` | `/tmp/quiz_cache` | Cache storage |
+| `BROWSER_PAGE_TIMEOUT` | `10000` | Playwright timeout (ms) |
 
 ---
 
 ## 🧪 Testing
 
-The repository includes a **pytest** suite under `tests/`.
 ```bash
-uv run pytest -q
+uv run pytest -v
 ```
-Key test modules:
-- `tests/test_resources/test_api.py` – API endpoint sanity checks.
-- `tests/test_resources/test_browser.py` – Playwright launch & navigation sanity.
-- `tests/test_resources/test_llm.py` – Mocked LLM responses.
+
+Test coverage includes:
+- API endpoint validation
+- Browser initialization
+- LLM response mocking
 
 ---
 
-## 🤝 Contributing
+## 📋 TODO: Future Improvements
 
-Contributions are welcome! Please follow these steps:
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/awesome‑thing`).
-3. Ensure code passes linting (`ruff .`) and tests.
-4. Open a Pull Request with a clear description of the changes.
+> **Note:** The project statement (`project-llm-analysis-quiz.md`) itself contains TODOs and states "THIS PROJECT IS WORK IN PROGRESS. SOME DETAILS MAY CHANGE." Below are improvements that could be made with more time.
+
+### 🔴 High Priority
+- [ ] **Gemini Function Calling** - Currently it is experiencing Malformed Function Call errors
+- [ ] **Dynamic Model Selection** - Allow choosing different LLMs per quiz
+- [ ] **Advanced Error Handling** - More granular error categories and recovery
+
+### 🟡 Medium Priority
+- [ ] **Parallel Quiz Handling** - Process current and next URL simultaneously on wrong answers
+- [ ] **Better Visualization Support** - Generate charts as images or interactive formats
+- [ ] **Geo-spatial Analysis** - Improve GeoJSON/KML processing capabilities
+- [ ] **Network Analysis** - Better graph/network data handling
+
+### 🟢 Nice to Have
+- [ ] **Comprehensive Test Suite** - Add more unit tests
+- [ ] **Performance Metrics** - Track success rates per question type
+- [ ] **Caching Optimization** - Smarter cache invalidation
+- [ ] **Enhanced Logging** - More granular logs for debugging
+- [ ] **User Interface** - Simple web UI for monitoring quiz progress
+- [ ] **More Test Cases** - Cover edge cases in quiz solving
+
+---
+
+## 📝 Project Notes
+
+### What the Project Requires (from `project-llm-analysis-quiz.md`)
+
+1. **API Endpoint** that:
+   - Accepts POST with `{email, secret, url}`
+   - Returns HTTP 200 for valid requests, 400 for invalid JSON, 403 for invalid secrets
+   - Solves quiz within **3 minutes** of receiving the request
+
+2. **Quiz Solving** capabilities for:
+   - Web scraping (JS-rendered pages)
+   - API sourcing (with provided headers)
+   - Data cleansing (text/PDF/etc.)
+   - Data processing (transformation, transcription, vision)
+   - Analysis (filtering, sorting, aggregating, ML models, geo-spatial, network)
+   - Visualization (charts as images, narratives, slides)
+
+3. **Answer Submission**:
+   - POST to URL specified on quiz page (never hardcoded)
+   - Payload: `{email, secret, url, answer}` under 1MB
+   - Answer can be: boolean, number, string, base64 URI, or JSON object
+
+4. **Prompt Testing** (separate evaluation):
+   - System prompt (max 100 chars) to resist revealing a code word
+   - User prompt (max 100 chars) to extract code words from other system prompts
+
+### ⚠️ Unclear Aspects in Project Statement
+
+The official project statement has these unresolved items:
+
+1. **"THIS PROJECT IS WORK IN PROGRESS"** - Requirements may change
+2. **Scoring weights** - "will be finalized later"
+3. **Model selection** - "Which models will prompts be tested on?" marked as TODO
+4. **Test pairing** - "How many other prompts will each prompt be tested against?" marked as TODO
+5. **Viva format** - Only says "voice viva with LLM evaluator" without details
+6. **3 minute timer** - Unclear if for a single question or entire quiz
+
+### 💡 Design Decisions Made
+
+Given the ambiguity, this implementation:
+- Uses **LangGraph** for flexible workflow management
+- Implements **multiple LLM providers** (OpenAI, Google) for redundancy
+- Has **aggressive retry logic** (10 attempts, 3-min timeout per quiz)
+- Uses **Gemini for multimodal** (vision, audio, PDF) analysis
+- Maintains **persistent Python sessions** for stateful computations
+- **Caches page content** to avoid redundant fetches
+
+**Test endpoint provided:** `https://tds-llm-analysis.s-anand.net/demo`
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **MIT License** – see the `LICENSE` file for details.
+MIT License - see [LICENSE](LICENSE) file.
 
 ---
 
 ## 📞 Contact
 
-- **Name:** Mayank Kumar Poddar
-- **Email:** 23f3004197@ds.study.iitm.ac.in
-- **GitHub:** https://github.com/mayanklearns/yantrasolve
-
-Feel free to open an issue on GitHub for bugs, feature requests, or general questions.
+**Mayank Kumar Poddar**
+- Email: 23f3004197@ds.study.iitm.ac.in
+- GitHub: [@mayanklearns](https://github.com/mayanklearns)
 
 ---
 
-*Happy solving!*
+*Built with mass frustration and determination. 🚀*

@@ -162,7 +162,7 @@ async def receive_quiz(request: QuizRequest, background_tasks: BackgroundTasks):
     Main endpoint to receive quiz tasks
     Returns 200 immediately and solves in background
     """
-    logger.info(f"Received quiz request for {request.email}")
+    logger.info(f"Received quiz request for {request.email}, URL: {request.url}, Secret: {request.secret}")
 
     success = verify_request(request.secret, request.email)
 

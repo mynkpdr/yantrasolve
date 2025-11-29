@@ -6,116 +6,94 @@ from langchain_core.messages import HumanMessage, RemoveMessage
 
 
 async def feedback_node(state: QuizState) -> dict:
-    # Implementation of processing feedback from submission result
+    """Process submission feedback and decide next action."""
     logger.info(
         f"\n{'#' * 30}\n5. Processing feedback from submission result...\n{'#' * 30}"
     )
-    result = state["submission_result"]
-    # 1. Safe extraction of result
+    result = state.get("submission_result", {})
     completed_quizzes = state.get("completed_quizzes", [])
     is_correct = result.get("correct", False)
     reason = result.get("reason") or result.get("error", "No reason provided.")
-
     next_url = result.get("url")
 
-    logger.info("Processing submission result in feedback node.")
-    logger.info(f"Submission result: {result}")
-    logger.info(f"Is Correct: {is_correct}, Next URL: {next_url}, Reason: {reason}")
+    logger.info(f"Result: correct={is_correct}, reason={reason}, next_url={next_url}")
+
     # --- CASE A: SUCCESS ---
     if is_correct:
-        logger.info("✅ ANSWER CORRECT! Moving to next quiz.")
+        logger.info("✅ ANSWER CORRECT!")
 
-        # If no next_url is provided, the entire challenge is finished.
         if not next_url:
             return {
                 "is_complete": True,
-                "completed_quizzes": completed_quizzes
-                + [
-                    {
-                        "url": state["current_url"],
-                        "answer_payload": state.get("answer_payload", ""),
-                    }
-                ],
+                "completed_quizzes": completed_quizzes + [{
+                    "url": state["current_url"],
+                    "answer_payload": state.get("answer_payload", ""),
+                }],
             }
 
-        # CRITICAL: Full State Reset for the next question
-        # We return a dict of keys we want to OVERWRITE in the state.
+        # Reset for next quiz
         messages_to_delete = [RemoveMessage(id=m.id) for m in state["messages"]]
-
-        # Reset Python session for new quiz
         reset_python_session()
 
         return {
-            "current_url": next_url,  # Point to new quiz
-            "attempt_count": 0,  # Reset retries
-            "submission_result": {},  # Clear old result
-            "start_time": time.time(),  # Reset start time
-            "screenshot_path": "",  # Clear old screenshot
-            "completed_quizzes": completed_quizzes
-            + [
-                {
-                    "url": state["current_url"],
-                    "answer_payload": state.get("answer_payload", ""),
-                }
-            ],
-            "html": "",  # Clear old HTML content
-            "text": "",  # Clear old text content
-            "console_logs": [],  # Clear old console logs
-            # We clear the message history because the previous context
-            # (old PDF, old question) is irrelevant and confusing for the new quiz.
+            "current_url": next_url,
+            "attempt_count": 0,
+            "start_time": time.time(),
+            "screenshot_path": "",
+            "completed_quizzes": completed_quizzes + [{
+                "url": state["current_url"],
+                "answer_payload": state.get("answer_payload", ""),
+            }],
+            "html": "",
+            "text": "",
+            "console_logs": [],
             "messages": messages_to_delete,
         }
 
-    # --- CASE B: FAILURE ---
-    else:
-        current_attempts = state.get("attempt_count", 0) + 1
-        logger.info(
-            f"❌ ANSWER INCORRECT (Attempt {current_attempts}). Reason: {reason}"
-        )
+    # --- CASE B: FAILURE - Keep context for retry ---
+    current_attempts = state.get("attempt_count", 0) + 1
+    elapsed = time.time() - state.get("start_time", time.time())
+    logger.info(f"❌ INCORRECT (Attempt {current_attempts}, {elapsed:.0f}s elapsed)")
+
+    # Check if we should move to next URL (time exceeded)
+    if elapsed > 180 and next_url:  # 3 minutes
+        logger.warning(f"Timeout! Moving to next quiz: {next_url}")
         messages_to_delete = [RemoveMessage(id=m.id) for m in state["messages"]]
+        reset_python_session()
+        
+        return {
+            "current_url": next_url,
+            "attempt_count": 0,
+            "submission_result": {},
+            "start_time": time.time(),
+            "screenshot_path": "",
+            "html": "",
+            "text": "",
+            "console_logs": [],
+            "messages": messages_to_delete,
+        }
 
-        # Construct a detailed feedback message to guide the Agent
-        feedback_msg = HumanMessage(
-            content=f"""## ❌ SUBMISSION INCORRECT - RETRY REQUIRED
+    # Retry - add feedback message but KEEP existing context
+    feedback_msg = HumanMessage(
+        content=f"""## ❌ INCORRECT - Attempt {current_attempts}
 
-**Attempt**: {current_attempts} of 5
-**Server Response**: `{reason}`
-**Error**: `{result.get("error", "N/A")}`
+**Server says**: `{reason}`
 
-### Your Submitted Answer:
-```json
+**Your answer was**:
+```
 {state.get('answer_payload', {})}
 ```
 
----
+**Quick fixes to try**:
+- Check data type (string vs number vs list)
+- Strip whitespace: `.strip()`
+- Check rounding/precision for numbers
+- Re-read the question carefully
 
-### 🔍 DEBUGGING CHECKLIST
+**TRY AGAIN with a corrected answer!**"""
+    )
 
-1. **Data Type**: Is your answer the correct type? (string vs number vs list)
-2. **Format**: Check for extra whitespace, quotes, or encoding issues
-3. **Precision**: For numbers, check decimal places or rounding
-4. **Completeness**: Did you process ALL the data, not just a sample?
-5. **Logic**: Re-read the question - did you answer what was actually asked?
-
-### 💡 COMMON FIXES
-
-- Strip whitespace: `answer.strip()`
-- Check type: `type(answer)`, convert if needed
-- Round numbers: `round(answer, 2)` or `int(answer)`
-- List issues: Check order, duplicates, or missing items
-- String case: Sometimes case-sensitive (`"Yes"` vs `"yes"`)
-
-### ⚡ ACTION REQUIRED
-
-1. Re-analyze the original page content
-2. Review your calculation/extraction logic
-3. Fix the issue based on the server feedback
-4. Submit the corrected answer
-
-**TRY AGAIN NOW!**"""
-        )
-        # Update state: Increment counter and append the feedback message
-        return {
-            "attempt_count": current_attempts,
-            "messages": messages_to_delete + [feedback_msg],
-        }
+    return {
+        "attempt_count": current_attempts,
+        "messages": [feedback_msg],  # Just append, don't delete
+    }

@@ -32,7 +32,7 @@ Your goal is to solve data analysis tasks on web pages using your available tool
 
 3. **TOOL CALLING:**
    - ALWAYS use the appropriate tool for tasks.
-   - For QR codes, you must use `python_tool`. Don't use `call_llm_tool` at all.
+   - For QR codes, you must use `python_tool` with cv2 library.
    - Use `call_llm_tool` for complex file analyses (PDFs, Images, Audio).
    - Use `call_llm_with_multiple_files_tool` for analyzing multiple files together.
 
@@ -43,7 +43,7 @@ Your goal is to solve data analysis tasks on web pages using your available tool
    - Use `submit_answer_tool` to submit (never use Python requests)
 
 ### YOUR TOOLKIT
-- `python_tool(code)`: Execute Python. Pre-imported: `pd`, `np`. Available: requests, scipy, matplotlib, httpx, bs4, pypdf, duckdb, pillow, networkx, openpyxl, qrcode.
+- `python_tool(code)`: Execute Python. Pre-imported: `pd`, `np`. Available: requests, scipy, matplotlib, httpx, bs4, pypdf, duckdb, pillow, networkx, openpyxl, opencv-python.
 - `download_file_tool(url)`: Download file to temp dir. Returns local path.
 - `call_llm_tool(file_path, prompt)`: Analyze files with LLM (Image, Video, Audio, PDF only).
 - `call_llm_with_multiple_files_tool(file_paths, prompt)`: Analyze multiple files together.

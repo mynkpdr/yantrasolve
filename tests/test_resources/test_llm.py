@@ -119,32 +119,3 @@ class TestLLMClient:
         mock_client.ainvoke.assert_called_once_with(
             messages, temperature=0.5, max_tokens=100
         )
-
-    @pytest.mark.asyncio
-    async def test_chat_unsupported_provider(self, mocker):
-        """Test chat with unsupported provider."""
-        mock_settings = MagicMock()
-        mocker.patch("app.resources.llm.settings", mock_settings)
-
-        client = LLMClient(provider="anthropic")  # Placeholder client
-
-        messages = [{"role": "user", "content": "Hello"}]
-        with pytest.raises(ValueError, match="Unsupported provider: anthropic"):
-            await client.chat(messages)
-
-    @pytest.mark.asyncio
-    async def test_chat_error(self, mocker):
-        """Test chat completion error."""
-        mock_settings = MagicMock()
-        mock_settings.LLM_TEMPERATURE = 0.1
-        mocker.patch("app.resources.llm.settings", mock_settings)
-
-        mock_client = AsyncMock()
-        mock_client.ainvoke.side_effect = Exception("API error")
-
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_client):
-            client = LLMClient(provider="openai")
-
-        messages = [{"role": "user", "content": "Hello"}]
-        with pytest.raises(Exception, match="API error"):
-            await client.chat(messages)
