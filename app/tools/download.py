@@ -1,95 +1,91 @@
+"""File download tool with caching and streaming support."""
+
 import os
 import re
 import mimetypes
 from urllib.parse import urlparse, unquote
 import httpx
-
 from langchain_core.tools import tool
 from app.config.settings import settings
 from app.utils.logging import logger
 from app.utils.cache import get_cache_key, cache_get, cache_set
 
+CHUNK_SIZE = 1024 * 1024  # 1MB
+
+
+def _get_filename(response: httpx.Response) -> str:
+    """Extract filename from response headers or URL."""
+    # Try Content-Disposition header
+    content_disposition = response.headers.get("Content-Disposition")
+    if content_disposition:
+        match = re.search(
+            r'filename\*?=(?:UTF-8\'\')?(?:"([^"]*)"|([^;]*))', content_disposition
+        )
+        if match:
+            return match.group(1) or match.group(2)
+
+    # Try URL path
+    parsed = urlparse(str(response.url))
+    path_name = os.path.basename(unquote(parsed.path))
+    if path_name and "." in path_name:
+        return path_name
+
+    # Fallback: use content-type
+    content_type = response.headers.get("Content-Type", "").split(";")[0]
+    ext = mimetypes.guess_extension(content_type) or ".bin"
+    return f"downloaded_file{ext}"
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Sanitize filename for safe filesystem use."""
+    filename = os.path.basename(filename.replace("/", "_").replace("..", "__"))
+    return re.sub(r'[<>:"/\\|?*]', "_", filename)
+
 
 @tool
 def download_file_tool(url: str) -> str:
-    """
-    Downloads a file from a URL and saves it locally in the configured temp directory.
+    """Download a file from URL to temp directory.
 
     Args:
         url: The URL of the file to download
 
     Returns:
-        The local file path where the file was saved, or an error message
+        Local file path where file was saved, or error message
     """
-    # Check cache first
+    # Check cache
     cache_key = get_cache_key("download_file", url)
     hit, cached_data = cache_get(cache_key, ttl_seconds=3600)
     if hit:
         logger.info(f"Cache hit for file: {url}")
         return cached_data
 
-    max_size_mb = 50
     try:
         logger.info(f"Downloading: {url}")
-
         with httpx.Client(timeout=60.0) as client:
             with client.stream("GET", url, follow_redirects=True) as response:
                 response.raise_for_status()
 
-                # ----- SIZE CHECK -----
+                # Check size limit
                 content_length = response.headers.get("Content-Length")
-                if content_length and int(content_length) > max_size_mb * 1024 * 1024:
-                    return f"File too large: {int(content_length)/(1024*1024):.2f} MB (limit {max_size_mb} MB)"
+                if (
+                    content_length
+                    and int(content_length) > settings.MAX_FILE_SIZE_MB * 1024 * 1024
+                ):
+                    return f"File too large: {int(content_length) / (1024 * 1024):.2f} MB (limit {settings.MAX_FILE_SIZE_MB} MB)"
 
-                # ----- FILENAME RESOLUTION -----
-                filename = None
-
-                # Priority A: Content-Disposition header
-                content_disposition = response.headers.get("Content-Disposition")
-                if content_disposition:
-                    match = re.search(
-                        r'filename\*?=(?:UTF-8\'\')?(?:"([^"]*)"|([^;]*))',
-                        content_disposition,
-                    )
-                    if match:
-                        filename = match.group(1) or match.group(2)
-
-                # Priority B: URL path
-                if not filename:
-                    parsed = urlparse(str(response.url))
-                    path_name = os.path.basename(unquote(parsed.path))
-                    if path_name and "." in path_name:
-                        filename = path_name
-
-                # Priority C: fallback using content-type
-                if not filename:
-                    content_type = response.headers.get("Content-Type", "").split(";")[
-                        0
-                    ]
-                    ext = mimetypes.guess_extension(content_type) or ".bin"
-                    filename = f"downloaded_file{ext}"
-
-                # Sanitize
-                filename = os.path.basename(
-                    filename.replace("/", "_").replace("..", "__")
-                )
-                filename = re.sub(r'[<>:"/\\|?*]', "_", filename)
-
+                filename = _sanitize_filename(_get_filename(response))
                 local_path = settings.TEMP_DIR / filename
 
-                # ----- STREAM & WRITE -----
+                # Stream and write
                 downloaded_size = 0
-                chunk_size = 1024 * 1024
-
                 with open(local_path, "wb") as file:
-                    for chunk in response.iter_bytes(chunk_size):
+                    for chunk in response.iter_bytes(CHUNK_SIZE):
                         downloaded_size += len(chunk)
-                        if downloaded_size > max_size_mb * 1024 * 1024:
-                            return f"Download aborted: Exceeded {max_size_mb}MB limit."
+                        if downloaded_size > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
+                            return f"Download aborted: Exceeded {settings.MAX_FILE_SIZE_MB}MB limit."
                         file.write(chunk)
 
                 cache_set(cache_key, str(local_path.absolute()))
-
                 return str(local_path.absolute())
 
     except Exception as e:

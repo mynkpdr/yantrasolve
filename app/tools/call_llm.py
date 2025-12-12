@@ -1,87 +1,72 @@
-"""
-Call LLM Tool - Uses Gemini 2.5 Flash for multimodal file understanding.
-
-Supports: Images, PDFs, Audio, Video files.
-"""
+"""LLM tools for multimodal file analysis using Gemini."""
 
 import os
 from pathlib import Path
 from typing import List
-
 from langchain_core.tools import tool
-
+from app.config.settings import settings
 from app.utils.logging import logger
 from app.utils.gemini import (
-    GEMINI_MODEL,
     get_gemini_client,
     create_data_uri,
     is_text_file,
 )
 
-
-# Constants
-MAX_FILE_SIZE_MB = 20
-SYSTEM_PROMPT = "You are an expert file analyzer. Extract information accurately and concisely. For numerical answers, provide just the number. For text extraction, be precise and complete."
+SYSTEM_PROMPT = (
+    "You are an expert file analyzer. Extract information accurately and concisely."
+)
 
 
 def _build_file_content(file_path: str) -> dict:
-    """Build content dict for a single file."""
+    """Build content dict for a single file (text or binary)."""
     if is_text_file(file_path):
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                file_content = f.read()
-            return {
-                "type": "text",
-                "text": f"\n\n--- FILE: {Path(file_path).name} ---\n{file_content}\n--- END FILE ---",
-            }
+                return {
+                    "type": "text",
+                    "text": f"\n--- FILE: {Path(file_path).name} ---\n{f.read()}\n--- END ---",
+                }
         except UnicodeDecodeError:
             pass  # Fall through to binary handling
-
-    # Binary files (images, PDFs, audio, video)
-    data_uri = create_data_uri(file_path)
-    return {"type": "image_url", "image_url": {"url": data_uri}}
+    return {"type": "image_url", "image_url": {"url": create_data_uri(file_path)}}
 
 
 def _validate_files(file_paths: List[str]) -> str | None:
-    """Validate files exist and total size is within limits. Returns error message or None."""
+    """Validate files exist and total size is within limits."""
     for fp in file_paths:
         if not os.path.exists(fp):
             return f"Error: File not found: {fp}"
-
     total_size_mb = sum(os.path.getsize(fp) for fp in file_paths) / (1024 * 1024)
-    if total_size_mb > MAX_FILE_SIZE_MB:
-        return f"Error: Total file size too large ({total_size_mb:.2f}MB). Maximum is {MAX_FILE_SIZE_MB}MB."
-
+    if total_size_mb > settings.MAX_FILE_SIZE_MB:
+        return f"Error: Total file size too large ({total_size_mb:.2f}MB). Max is {settings.MAX_FILE_SIZE_MB}MB."
     return None
 
 
 def _call_gemini(prompt: str, file_paths: List[str]) -> str:
     """Core function to call Gemini LLM with files."""
-    # Validate files
-    error = _validate_files(file_paths)
-    if error:
+    if error := _validate_files(file_paths):
         return error
 
     logger.info(f"Calling Gemini LLM for {len(file_paths)} file(s)")
+    content = [{"type": "text", "text": prompt}] + [
+        _build_file_content(fp) for fp in file_paths
+    ]
 
-    # Build message content
-    content = [{"type": "text", "text": prompt}]
-    for file_path in file_paths:
-        content.append(_build_file_content(file_path))
-
-    # Make the API call
-    client = get_gemini_client()
-    completion = client.chat.completions.create(
-        model=GEMINI_MODEL,
-        temperature=0.1,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": content},
-        ],
+    result = (
+        get_gemini_client()
+        .chat.completions.create(
+            model=settings.GEMINI_MODEL,
+            temperature=0.1,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": content},
+            ],
+        )
+        .choices[0]
+        .message.content
     )
 
-    result = completion.choices[0].message.content
-    logger.info(f"Gemini LLM response received (length: {len(result)})")
+    logger.info(f"Gemini response received (length: {len(result)})")
     return result
 
 

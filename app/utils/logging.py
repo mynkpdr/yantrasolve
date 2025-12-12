@@ -1,31 +1,32 @@
-from loguru import logger
-import sys
-from app.config.settings import settings
+"""Centralized Loguru configuration for the service."""
+
 import os
+import sys
+import time
+from loguru import logger
+from app.config.settings import settings
 
-# Ensure logs directory exists
+
+# Ensure log directory exists and the timezone is set once at startup.
 os.makedirs(settings.LOGS_DIR, exist_ok=True)
+os.environ["TZ"] = "Asia/Kolkata"
+time.tzset()
 
-# Remove default handler
+# Pick a readable, consistent level for console and file outputs.
+LOG_LEVEL = "DEBUG" if settings.DEBUG else "INFO"
+
 logger.remove()
-
-logger.level("INFO", icon="ℹ️ ")
-logger.level("DEBUG", icon="🤓")
-
-# Console output
 logger.add(
     sys.stdout,
-    level="DEBUG",
-    format="<green>{time:HH:mm:ss}</green> | "
-    "<level>{level.icon}</level> | <cyan>{file.path}</cyan>:<cyan>{line}</cyan> - {message}",
+    level="INFO",
+    format="<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{file.path}</cyan>:<cyan>{line}</cyan> - {message}",
 )
-
-# File output with rotation and retention
-# logger.add(
-#     f"{settings.LOGS_DIR}/app_{time()}.log",
-#     rotation="10 MB",
-#     retention="7 days",
-#     level="INFO",
-#     backtrace=True,
-#     diagnose=True,
-# )
+logger.add(
+    str(settings.LOGS_DIR / "app_{time:YYYYMMDD_HHmmss}.log"),
+    rotation="10 MB",
+    retention="7 days",
+    level=LOG_LEVEL,
+    backtrace=settings.DEBUG,
+    diagnose=settings.DEBUG,
+    enqueue=True,
+)

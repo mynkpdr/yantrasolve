@@ -1,13 +1,13 @@
-# app/tools/python.py
+"""Python code execution tool with persistent session."""
+
 import sys
 import io
 import traceback
 from langchain_core.tools import tool
-import pandas as pd  # Pre-import common libs
+import pandas as pd
 import numpy as np
 
-# A global dictionary to hold session variables.
-# We use a single global scope since the app handles one quiz at a time per session
+# Global scope for persistent session state
 GLOBAL_SCOPE = {"pd": pd, "np": np, "__builtins__": __builtins__}
 
 
@@ -40,7 +40,6 @@ def python_tool(code: str):
             if output.strip()
             else "Code executed. (No output provided. Did you forget to print?)"
         )
-
     except Exception:
         error_msg = traceback.format_exc()
         # Try to give a hint if it's a common error
@@ -51,5 +50,3 @@ def python_tool(code: str):
         return f"Runtime Error:\n{error_msg}. Please fix the code and try again."
     finally:
         sys.stdout = old_stdout
-
-

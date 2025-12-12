@@ -39,8 +39,8 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://github.com/mayanklearns/yantrasolve#readme"
-repository = "https://github.com/mayanklearns/yantrasolve"
+homepage = "https://github.com/mynkpdr/yantrasolve#readme"
+repository = "https://github.com/mynkpdr/yantrasolve"
 
 [dependency-groups]
 dev = [

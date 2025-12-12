@@ -1,49 +1,39 @@
+"""Helper utilities for file management and async operations."""
+
 import hashlib
-from pathlib import Path
-from typing import Any
-from app.config.settings import settings
 import time
 import asyncio
 import random
+from pathlib import Path
+from typing import Any
+from app.config.settings import settings
 from app.utils.logging import logger
 
 
 def setup_temp_directory() -> None:
-    """
-    Create temporary directory for file storage if it doesn't exist.
-    """
-    temp_dir = Path(settings.TEMP_DIR)
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    """Create temporary directory if it doesn't exist."""
+    Path(settings.TEMP_DIR).mkdir(parents=True, exist_ok=True)
 
 
 def cleanup_temp_files(older_than: int = 3600) -> int:
-    """
-    Remove old temporary files.
-
-    Args:
-        older_than: Remove files older than this many seconds (default 1 hour)
-
-    Returns:
-        Number of files removed
-    """
+    """Remove temp files older than specified seconds. Returns count removed."""
     temp_dir = Path(settings.TEMP_DIR)
     if not temp_dir.exists():
         return 0
 
     current_time = time.time()
-    removed_count = 0
-
+    removed = 0
     for file_path in temp_dir.rglob("*"):
-        if file_path.is_file():
-            file_age = current_time - file_path.stat().st_mtime
-            if file_age > older_than:
-                try:
-                    file_path.unlink()
-                    removed_count += 1
-                except Exception:
-                    pass
-
-    return removed_count
+        if (
+            file_path.is_file()
+            and (current_time - file_path.stat().st_mtime) > older_than
+        ):
+            try:
+                file_path.unlink()
+                removed += 1
+            except Exception:
+                pass
+    return removed
 
 
 async def retry_with_backoff(
@@ -53,22 +43,7 @@ async def retry_with_backoff(
     max_delay: float = 5.0,
     exceptions: tuple = (Exception,),
 ):
-    """
-    Retry an async function with exponential backoff and jitter.
-
-    Args:
-        func: The async function to call.
-        max_retries: Maximum number of retries.
-        base_delay: Initial delay between retries.
-        max_delay: Maximum delay between retries.
-        exceptions: Exception types to catch and retry on.
-
-    Returns:
-        Result of func() if successful.
-
-    Raises:
-        Last exception raised by func() if all retries fail.
-    """
+    """Retry async function with exponential backoff and jitter."""
     attempt = 0
     while True:
         try:
@@ -78,31 +53,20 @@ async def retry_with_backoff(
             if attempt > max_retries:
                 logger.error(f"Max retries reached: {e}")
                 raise
-            # exponential backoff with jitter
             delay = min(max_delay, base_delay * 2 ** (attempt - 1))
-            jitter = random.uniform(0, delay * 0.1)  # small random jitter
-            total_delay = delay + jitter
+            total_delay = delay + random.uniform(0, delay * 0.1)
             logger.warning(
-                f"Retry {attempt}/{max_retries} after {total_delay:.2f}s due to: {e}"
+                f"Retry {attempt}/{max_retries} after {total_delay:.2f}s: {e}"
             )
             await asyncio.sleep(total_delay)
 
 
 def hash_content(content: Any) -> str:
-    """
-    Generate hash.
-
-    Args:
-        content: Content to hash (will be converted to string)
-
-    Returns:
-        SHA256 hash as hex string
-    """
+    """Generate SHA256 hash from content."""
     if isinstance(content, bytes):
         content_bytes = content
     elif isinstance(content, str):
         content_bytes = content.encode("utf-8")
     else:
         content_bytes = str(content).encode("utf-8")
-
     return hashlib.sha256(content_bytes).hexdigest()
