@@ -1,14 +1,3 @@
----
-title: YantraSolve
-emoji: 🧩
-colorFrom: blue
-colorTo: green
-sdk: docker
-pinned: false
-license: mit
-short_description: AI-powered autonomous quiz solver using LangGraph and LLMs
----
-
 <div align="center">
 
 # 🧩 YantraSolve

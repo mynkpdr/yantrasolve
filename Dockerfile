@@ -26,9 +26,12 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
+# Ensure the virtualenv is writable by the runtime user
+RUN chown -R nonroot:nonroot /app/.venv
+
 # Now Playwright CLI is available, so this works:
 RUN python -m playwright install chromium --with-deps
 
 USER nonroot
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0"]
+CMD ["uv", "run", "main.py", "0.0.0.0"]
