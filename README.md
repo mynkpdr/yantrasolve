@@ -7,13 +7,14 @@
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.121-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.0-FF6B35?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![Hugging Face Space](https://img.shields.io/badge/🧩-Space-ff5c5c?logo=huggingface)](https://huggingface.co/spaces/mynkpdr/yantrasolve)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[Features](#features) • [Quick Start](#quick-start) • [API](#apireference) • [Architecture](#architecture) • [Configuration](#configuration) • [Testing](#testing)
+[Features](#-features) • [Quick Start](#-quick-start) • [API](#-api-reference) • [Architecture](#-architecture) • [Configuration](#-configuration) • [Testing](#-testing)
 
 </div>
 
----
+<img src="https://github.com/user-attachments/assets/c33187f4-eb1a-4101-82d4-4e6c9acf9647" width="100%">
 
 ## 📖 Overview
 
@@ -103,7 +104,7 @@ cd yantrasolve
 uv sync  # or: pip install -e .
 
 # Install browser
-playwright install chromium
+playwright install chromium --with-deps
 ```
 
 ### Installation (Docker)
@@ -114,31 +115,6 @@ docker build -t yantrasolve .
 
 # Run container
 docker run --env-file .env -p 8000:8000 yantrasolve
-```
-
-### Configuration
-
-Create a `.env` file:
-
-```env
-# Required
-SECRET_KEY=your-secret-key
-STUDENT_EMAIL=your-email@ds.study.iitm.ac.in
-
-# LLM (Primary reasoning model)
-LLM_API_KEY=your-openai-api-key
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_PROVIDER=openai
-
-# Gemini (File analysis - supports multiple keys)
-GEMINI_API_KEYS=key1,key2,key3
-GEMINI_BASE_URL=https://aipipe.org/openrouter/v1
-GEMINI_MODEL=google/gemini-2.5-flash-lite
-
-# Server
-HOST=0.0.0.0
-PORT=8000
-DEBUG=false
 ```
 
 ### Run
@@ -192,7 +168,7 @@ Content-Type: application/json
 
 ---
 
-## 🏗️ Architecture
+## 🏭 Architecture
 
 ```
 yantrasolve/
@@ -233,7 +209,7 @@ yantrasolve/
 
 ---
 
-## ⚙️ Configuration
+## 🧰 Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
